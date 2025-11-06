@@ -1,0 +1,118 @@
+version: "3.9"
+
+services:
+  turn:
+    image: coturn/coturn:latest
+    container_name: golosai-turn
+    command: >
+      turnserver
+      --lt-cred-mech
+      --user user:pass
+      --realm golosai.local
+      --listening-port 3478
+      --min-port 49160
+      --max-port 49200
+      --log-file stdout
+      --external-ip 192.168.0.103
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "49160-49200:49160-49200/udp"
+    networks:
+      - golosai-network
+
+  backend:
+    build: ./backend
+    container_name: golosai-backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      asr:
+        condition: service_healthy
+      llm:
+        condition: service_healthy
+      tts:
+        condition: service_healthy
+    volumes:
+      - ./config:/app/config
+    environment:
+      - CONFIG_PATH=/app/config/config.yaml
+      - SCENARIOS_PATH=/app/config/scenarios.yaml
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/docs"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - golosai-network
+
+  asr:
+    build: ./asr
+    container_name: golosai-asr
+    ports:
+      - "9001:9001"
+    volumes:
+      - ./models/asr:/models
+    environment:
+      - MODEL_NAME=large-v3
+    expose:
+      - "9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9001/docs"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - golosai-network
+
+  llm:
+    build: ./llm
+    container_name: golosai-llm
+    volumes:
+      - ./models/llm:/models
+    environment:
+      - MODEL_NAME=llama3-8b-instruct-q4
+    ports:
+      - "9002:9002"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9002/docs"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - golosai-network
+
+  tts:
+    build: ./tts
+    container_name: golosai-tts
+    ports:
+      - "9003:9003"
+    volumes:
+      - ./models/tts:/models
+    environment:
+      - VOICE=de_DE-thorsten-high
+    expose:
+      - "9003"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9003/docs"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - golosai-network
+
+  frontend:
+    build: ./frontend
+    container_name: golosai-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - golosai-network
+
+# Секция networks должна быть на верхнем уровне, НЕ внутри services
+networks:
+  golosai-network:
+    driver: bridge

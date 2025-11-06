@@ -1,0 +1,17 @@
+asr:
+  url: "http://asr:9001/transcribe"
+  model: "large-v3"
+  language: "de"       # "auto" или "de" — для стабильности немецкого
+
+llm:
+  url: "http://llm:9002/ask"
+  model: "llama3-8b-instruct-q4"
+  max_history: 8       # сколько последних реплик передавать
+
+tts:
+  url: "http://tts:9003/speak"
+  default_voice: "de_DE-thorsten-high"
+
+app:
+  default_scenario: "restaurant"
+  response_timeout: 30
